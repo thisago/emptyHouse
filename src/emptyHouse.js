@@ -4,892 +4,836 @@
 // script: js
 
 /*
- Idea: a magnet powerup that
+  Idea: a magnet powerup that
   attracts every food
 */
 
 // CONFIGS
-const
-	screen={h:136,w:240},
-	tileSize=8,
-	transparentColor=0,
-	invencibleTime=100,
- startScore=0,
- liveScoreInc=50,
- defaultLives=3,
- playerSpriteUpdate=60,
-	startPos={
-		x:(screen.w/2)-tileSize,
-		y:screen.h-(tileSize*3)
-	},
-	ground={
-		w:screen.w,
-		h:8*tileSize+1
-	},
-	slomoDiv=5,//slow motion power; more is slower
-	r=Math.floor(Math.random()*30)
-	slomoUpgradeMsg="Slow Motion Upgraded! (+1s)",
-	slomoUpgradeMaxMsg="Slow Motion Upgraded! (+1s)\nMax reached",
-	slomoLevels=[
-	 {dur:2,score:70+r,msg:"Slow Motion Unlocked!"},
-		{dur:3,score:120+r,msg:slomoUpgradeMsg},
-		{dur:4,score:180+r,msg:slomoUpgradeMsg},
-		{dur:5,score:240+r,msg:slomoUpgradeMsg},
-		{dur:6,score:350+r,msg:slomoUpgradeMsg},
-		{dur:7,score:460+r,msg:slomoUpgradeMaxMsg},
-
-	],
-	slomoReloadTime=100,
-	slomoUseTime=60,
-	//MENU
-	menuItems={
-  "Start Game":startGame,
-  "Reset Stats":function(){
-   maxScore=0
-   tries=0
-   revolutionPassed=0
+const screen = { h: 136, w: 240 },
+  tileSize = 8,
+  transparentColor = 0,
+  invencibleTime = 100,
+  startScore = 0,
+  liveScoreInc = 50,
+  defaultLives = 3,
+  playerSpriteUpdate = 60,
+  startPos = {
+    x: screen.w / 2 - tileSize,
+    y: screen.h - tileSize * 3,
   },
-  "View Controls":showControls,
-  "View All Obstacles":showItems,
- },
- menuItemsKeys=Object.keys(menuItems)
- menuConfig={
-  selected:"> $ <",
-  unselected:"  $",
-  x:47,
-  y:60,
-  gap:10
- },
- menuSelected=0,
- //food
- foodSpawnTime=0
-	foodSpawnMax=2,
- foodVelMod=0.1,
- foodDisapearTime=500//ticks
+  ground = {
+    w: screen.w,
+    h: 8 * tileSize + 1,
+  },
+  slomoDiv = 5, //slow motion power; more is slower
+  r = Math.floor(Math.random() * 30)
+;(slomoUpgradeMsg = "Slow Motion Upgraded! (+1s)"),
+  (slomoUpgradeMaxMsg = "Slow Motion Upgraded! (+1s)\nMax reached"),
+  (slomoLevels = [
+    { dur: 2, score: 70 + r, msg: "Slow Motion Unlocked!" },
+    { dur: 3, score: 120 + r, msg: slomoUpgradeMsg },
+    { dur: 4, score: 180 + r, msg: slomoUpgradeMsg },
+    { dur: 5, score: 240 + r, msg: slomoUpgradeMsg },
+    { dur: 6, score: 350 + r, msg: slomoUpgradeMsg },
+    { dur: 7, score: 460 + r, msg: slomoUpgradeMaxMsg },
+  ]),
+  (slomoReloadTime = 100),
+  (slomoUseTime = 60),
+  //MENU
+  (menuItems = {
+    "Start Game": startGame,
+    "Reset Stats": function () {
+      maxScore = 0
+      tries = 0
+      revolutionPassed = 0
+    },
+    "View Controls": showControls,
+    "View All Obstacles": showItems,
+  }),
+  (menuItemsKeys = Object.keys(menuItems))
+;(menuConfig = {
+  selected: "> $ <",
+  unselected: "  $",
+  x: 47,
+  y: 60,
+  gap: 10,
+}),
+  (menuSelected = 0),
+  //food
+  (foodSpawnTime = 0)
+;(foodSpawnMax = 2), (foodVelMod = 0.1), (foodDisapearTime = 500) //ticks
 
- //night
-const
- isNight=false,
- revolutionTime=6000,
- revolutionPassed=0
-function redrawBg(tiles){
- return function(tile,x,y){
-	 if(isNight)
-	  if(tile>=64&&tile<=70)
-	   tile+=48
-	  else if(tiles.indexOf(tile)>=0)
-	   tile+=112
-	 return tile
-	}
+//night
+const isNight = false,
+  revolutionTime = 6000,
+  revolutionPassed = 0
+function redrawBg(tiles) {
+  return function (tile, x, y) {
+    if (isNight)
+      if (tile >= 64 && tile <= 70) tile += 48
+      else if (tiles.indexOf(tile) >= 0) tile += 112
+    return tile
+  }
 }
-function updateRevolution(){
- if(rt==0)return
- if(rt%revolutionTime==0){
-  isNight=!isNight
-  if(!isNight)
-   revolutionPassed++
- }
+function updateRevolution() {
+  if (rt == 0) return
+  if (rt % revolutionTime == 0) {
+    isNight = !isNight
+    if (!isNight) revolutionPassed++
+  }
 }
 
 //save
-const
- mem_maxScore=0,
- mem_tries=1,
- mem_revolutions=2
+const mem_maxScore = 0,
+  mem_tries = 1,
+  mem_revolutions = 2
 
-function saveMem(){
- pmem(mem_maxScore,maxScore)
- pmem(mem_tries,tries)
- pmem(mem_revolutions,revolutionPassed)
+function saveMem() {
+  pmem(mem_maxScore, maxScore)
+  pmem(mem_tries, tries)
+  pmem(mem_revolutions, revolutionPassed)
 }
-function getMem(){
- maxScore=pmem(mem_maxScore)
- tries=pmem(mem_tries)
- revolutionPassed=pmem(mem_revolutions)
+function getMem() {
+  maxScore = pmem(mem_maxScore)
+  tries = pmem(mem_tries)
+  revolutionPassed = pmem(mem_revolutions)
 }
 
 // dificulty
-var score=0 // def here for correct first calc
-var
- obstacleSpawnTime=0,
- obstacleSpawnMax=0,
- obstacleMaxSpeed=0,
- obstacleMinSpeed=0.3,
- obstacleMaxSize=0,
- obstacleMinSize=0
+var score = 0 // def here for correct first calc
+var obstacleSpawnTime = 0,
+  obstacleSpawnMax = 0,
+  obstacleMaxSpeed = 0,
+  obstacleMinSpeed = 0.3,
+  obstacleMaxSize = 0,
+  obstacleMinSize = 0
 
-function updateDifficulty(){
- obstacleSpawnTime=200-(score*2)
- if(obstacleSpawnTime<1)
-  obstacleSpawnTime=1
+function updateDifficulty() {
+  obstacleSpawnTime = 200 - score * 2
+  if (obstacleSpawnTime < 1) obstacleSpawnTime = 1
 
- obstacleSpawnMax=2+Math.floor(score/15)
- if(obstacleSpawnMax>6)
-  obstacleSpawnMax=6
+  obstacleSpawnMax = 2 + Math.floor(score / 15)
+  if (obstacleSpawnMax > 6) obstacleSpawnMax = 6
 
- obstacleMaxSpeed=1+Math.floor(score/80)
- if(obstacleMaxSpeed>3)
-  obstacleMaxSpeed=3
+  obstacleMaxSpeed = 1 + Math.floor(score / 80)
+  if (obstacleMaxSpeed > 3) obstacleMaxSpeed = 3
 
- obstacleMaxSize=sprite.obstacle.length
+  obstacleMaxSize = sprite.obstacle.length
 
- //food
- foodSpawnTime=300-(score)
- if(foodSpawnTime<1)
-  foodSpawnTime=1
+  //food
+  foodSpawnTime = 300 - score
+  if (foodSpawnTime < 1) foodSpawnTime = 1
 
-	foodSpawnMax=2+Math.floor(score/30)
-	if(foodSpawnTime>100)
-  foodSpawnMax=100
+  foodSpawnMax = 2 + Math.floor(score / 30)
+  if (foodSpawnTime > 100) foodSpawnMax = 100
 }
 
 // UTILS
-function newSpr(id,w,h,scale){
-	scale=scale?scale:2
-	w=w?w:1
-	h=h?h:1
-	return [id,w,h,scale]
+function newSpr(id, w, h, scale) {
+  scale = scale ? scale : 2
+  w = w ? w : 1
+  h = h ? h : 1
+  return [id, w, h, scale]
 }
-function newMap(x,y,w,h,scale){
-	scale=scale?scale:2
-	return [x,y,w,h,scale]
+function newMap(x, y, w, h, scale) {
+  scale = scale ? scale : 2
+  return [x, y, w, h, scale]
 }
-function spriteSize(s){
- return {
-  w:(s[1]*tileSize)*s[3],
-  h:(s[2]*tileSize)*s[3]
- }
+function spriteSize(s) {
+  return {
+    w: s[1] * tileSize * s[3],
+    h: s[2] * tileSize * s[3],
+  }
 }
-function mapSize(s){
- return {
-  w:(s[2]*tileSize)*s[4],
-  h:(s[3]*tileSize)*s[4]
- }
+function mapSize(s) {
+  return {
+    w: s[2] * tileSize * s[4],
+    h: s[3] * tileSize * s[4],
+  }
 }
-function drawSpr(s,x,y,flip,rot){
-	rot=rot?rot:0
-	flip=flip?flip:0
-	spr(s[0],x,y,transparentColor,s[3],flip,rot,s[1],s[2])
+function drawSpr(s, x, y, flip, rot) {
+  rot = rot ? rot : 0
+  flip = flip ? flip : 0
+  spr(s[0], x, y, transparentColor, s[3], flip, rot, s[1], s[2])
 }
-function drawMap(m,x,y,flip,rot){
- rot=rot?rot:0
-	flip=flip?flip:0
-	map(m[0],m[1],m[2],m[3],x,y,transparentColor,m[4],function(tile,x,y){
-  if(m[2]==1&&m[3]==1)
-   return [tile,flip,rot]
-  return tile 	
-	})
+function drawMap(m, x, y, flip, rot) {
+  rot = rot ? rot : 0
+  flip = flip ? flip : 0
+  map(
+    m[0],
+    m[1],
+    m[2],
+    m[3],
+    x,
+    y,
+    transparentColor,
+    m[4],
+    function (tile, x, y) {
+      if (m[2] == 1 && m[3] == 1) return [tile, flip, rot]
+      return tile
+    }
+  )
 }
 //colision
 
-function overlaps(p1,len1,p2,len2){
- const high=Math.max(p1,p2)
- const low=Math.min(p1+len1,p2+len2)
- return high<low
+function overlaps(p1, len1, p2, len2) {
+  const high = Math.max(p1, p2)
+  const low = Math.min(p1 + len1, p2 + len2)
+  return high < low
 }
-function collides(obstacle){
-	if(
-		overlaps(
-		 player.pos.x,player.size.w-tileSize,
-			obstacle.pos.x,obstacle.size.w
-		)&&
-		overlaps(
-		 player.pos.y,player.size.h-tileSize,
-			obstacle.pos.y,obstacle.size.h
-			
-		)
-	) return true
- return false
+function collides(obstacle) {
+  if (
+    overlaps(
+      player.pos.x,
+      player.size.w - tileSize,
+      obstacle.pos.x,
+      obstacle.size.w
+    ) &&
+    overlaps(
+      player.pos.y,
+      player.size.h - tileSize,
+      obstacle.pos.y,
+      obstacle.size.h
+    )
+  )
+    return true
+  return false
 }
-
 
 // SPRITES
-const sprite={
-	player:{
-		idle:[
-			newSpr(1),
-			newSpr(17)
-		],
-		walk:[
-			newSpr(2),
-			newSpr(18)
-		]
-	},
-	obstacle:[
-		newMap(40,4,2,1,2),//table
-		newMap(39,1,1,1,2),//oven
-	 newMap(36,1,3,1,1),//iron bar
-	 newMap(41,1,2,1,2),//door
-	 newMap(40,1,1,1,1),//telephone
-	 newMap(36,2,3,1,2),//wood plank
-	 newMap(36,3,1,1,1),//toy car
-	 newMap(37,3,1,1,1),//flower pot
-	 newMap(38,3,1,1,1),//water pot
-	 newMap(39,2,1,2,2),//fridge
-	 newMap(40,2,1,1,2),//fish bowl
-		newMap(41,2,2,1,1),//hoverboard
-	 newMap(40,3,1,1,2),//chair
-	 newMap(41,3,1,1,2),//trash can
-	 newMap(43,3,6,1,2),//ladder
-	 newMap(42,3,1,2,1),//light
-	 newMap(36,4,2,1,2),//sofa
-	 newMap(38,4,2,1,1),//broom
-	 newMap(30,2,4,1,1),//iron bar
-	 newMap(30,3,5,1,1),//iron bar
-	 newMap(30,4,6,1,1),//iron bar
-	 newMap(30,5,7,1,1),//iron bar
-	 newMap(30,6,8,1,1),//iron bar
-	 newMap(30,7,9,1,1),//iron bar
-	 newMap(30,8,10,1,1),//iron bar
-	 newMap(38,5,2,1,2),//bed
-		newMap(43,4,1,2,1),//umbrella
-		newMap(43,1,1,1,1),//vase
-		newMap(44,1,1,1,1),//sand bucket
-  newMap(43,2,1,1,1),//water bucket
-  newMap(44,2,1,1,2),//toilet
-  newMap(45,1,1,1,1),//liquid soup
-  newMap(45,2,1,1,1),//mirror
-  newMap(46,1,1,2,1),//hoe/rastelo
-  newMap(47,1,1,2,1),//shovel
-  newMap(48,1,1,2,1),//pickaxe
-  newMap(44,4,1,1,1),//ash
-  newMap(44,5,1,1,1),//torch
-  newMap(45,4,1,3,1),//post
-  newMap(46,4,1,2,1),//trass can
-  newMap(49,1,2,1,1),//seats
-  newMap(46,6,1,1,1),//tap
-  newMap(47,6,1,1,1),//campfire
-  newMap(47,5,1,1,1),//keys
-  newMap(48,5,1,1,1),//lock
-  newMap(48,6,1,1,1),//painting
-  newMap(49,2,1,1,1),//colorful ball
-  newMap(47,4,1,1,1),//lighter
-  //newMap(49,1,2,1,1),//
- ],
- food:{
-  good:[
-   newMap(30,12,1,1,1),//apple
-   newMap(31,12,1,1,1),//banana
-   newMap(32,12,1,1,1),//avocado
-   newMap(33,12,1,1,1),//watermelon
-   newMap(34,12,1,1,1),//coffee
-   newMap(35,12,1,1,1),//unknown fruit
-   newMap(36,12,1,1,1),//papaya
-   newMap(37,12,1,1,1),//tomato
-   newMap(38,12,1,1,1),//egg
-   newMap(39,12,1,1,1),//grapes
-   newMap(40,12,1,1,1),//carrot
-   newMap(41,11,1,2,1),//pineapple
-   newMap(42,12,1,1,1),//eggplant
-  ],
-  bad:[
-   newMap(30,13,1,1,1),//cereal
-   newMap(31,13,1,1,1),//lolipop
-   newMap(32,13,1,1,1),//candy
-   newMap(33,13,1,1,1),//cereal bar
-   newMap(34,13,1,1,1),//ice cream
-   newMap(35,13,1,1,1),//white chocolate
-   newMap(36,13,1,1,1),//hamburguer
-   newMap(37,13,1,1,1),//black juice
-   newMap(38,13,1,1,1),//red juice
-   newMap(39,13,1,1,1),//purple juice
-   newMap(40,13,1,1,1),//yogurt
-  ]
- }
-}
-
-const
- rooms=[
-  /*[[posx,posy,redrawfn?],...]*/
-  [[0,0,redrawBg([16,32,48,33,49,34,50])],[0,17]],
-  [[60,0,redrawBg([28])],[60,17]],
-  [[90,0,redrawBg([28])],[90,17]],
- ]
- doors=[
-  /*[room,[x,y],toroom]*/
-  [0,[9,8],1],
-  [0,[21,8],2],
-  [0,[22,8],2],
-  [2,[6,8],0],
-  [2,[7,8],0],
-  [1,[20,8],0],
- ]
-var room=0
-
-function doorObj(door){
- return {
-  pos:{
-   x:(door[1][0])*tileSize,
-   y:(door[1][1])*tileSize,
+const sprite = {
+  player: {
+    idle: [newSpr(1), newSpr(17)],
+    walk: [newSpr(2), newSpr(18)],
   },
-		size:{
-		 w:1,
-			h:2,
-		}
-	}
+  obstacle: [
+    newMap(40, 4, 2, 1, 2), //table
+    newMap(39, 1, 1, 1, 2), //oven
+    newMap(36, 1, 3, 1, 1), //iron bar
+    newMap(41, 1, 2, 1, 2), //door
+    newMap(40, 1, 1, 1, 1), //telephone
+    newMap(36, 2, 3, 1, 2), //wood plank
+    newMap(36, 3, 1, 1, 1), //toy car
+    newMap(37, 3, 1, 1, 1), //flower pot
+    newMap(38, 3, 1, 1, 1), //water pot
+    newMap(39, 2, 1, 2, 2), //fridge
+    newMap(40, 2, 1, 1, 2), //fish bowl
+    newMap(41, 2, 2, 1, 1), //hoverboard
+    newMap(40, 3, 1, 1, 2), //chair
+    newMap(41, 3, 1, 1, 2), //trash can
+    newMap(43, 3, 6, 1, 2), //ladder
+    newMap(42, 3, 1, 2, 1), //light
+    newMap(36, 4, 2, 1, 2), //sofa
+    newMap(38, 4, 2, 1, 1), //broom
+    newMap(30, 2, 4, 1, 1), //iron bar
+    newMap(30, 3, 5, 1, 1), //iron bar
+    newMap(30, 4, 6, 1, 1), //iron bar
+    newMap(30, 5, 7, 1, 1), //iron bar
+    newMap(30, 6, 8, 1, 1), //iron bar
+    newMap(30, 7, 9, 1, 1), //iron bar
+    newMap(30, 8, 10, 1, 1), //iron bar
+    newMap(38, 5, 2, 1, 2), //bed
+    newMap(43, 4, 1, 2, 1), //umbrella
+    newMap(43, 1, 1, 1, 1), //vase
+    newMap(44, 1, 1, 1, 1), //sand bucket
+    newMap(43, 2, 1, 1, 1), //water bucket
+    newMap(44, 2, 1, 1, 2), //toilet
+    newMap(45, 1, 1, 1, 1), //liquid soup
+    newMap(45, 2, 1, 1, 1), //mirror
+    newMap(46, 1, 1, 2, 1), //hoe/rastelo
+    newMap(47, 1, 1, 2, 1), //shovel
+    newMap(48, 1, 1, 2, 1), //pickaxe
+    newMap(44, 4, 1, 1, 1), //ash
+    newMap(44, 5, 1, 1, 1), //torch
+    newMap(45, 4, 1, 3, 1), //post
+    newMap(46, 4, 1, 2, 1), //trass can
+    newMap(49, 1, 2, 1, 1), //seats
+    newMap(46, 6, 1, 1, 1), //tap
+    newMap(47, 6, 1, 1, 1), //campfire
+    newMap(47, 5, 1, 1, 1), //keys
+    newMap(48, 5, 1, 1, 1), //lock
+    newMap(48, 6, 1, 1, 1), //painting
+    newMap(49, 2, 1, 1, 1), //colorful ball
+    newMap(47, 4, 1, 1, 1), //lighter
+    //newMap(49,1,2,1,1),//
+  ],
+  food: {
+    good: [
+      newMap(30, 12, 1, 1, 1), //apple
+      newMap(31, 12, 1, 1, 1), //banana
+      newMap(32, 12, 1, 1, 1), //avocado
+      newMap(33, 12, 1, 1, 1), //watermelon
+      newMap(34, 12, 1, 1, 1), //coffee
+      newMap(35, 12, 1, 1, 1), //unknown fruit
+      newMap(36, 12, 1, 1, 1), //papaya
+      newMap(37, 12, 1, 1, 1), //tomato
+      newMap(38, 12, 1, 1, 1), //egg
+      newMap(39, 12, 1, 1, 1), //grapes
+      newMap(40, 12, 1, 1, 1), //carrot
+      newMap(41, 11, 1, 2, 1), //pineapple
+      newMap(42, 12, 1, 1, 1), //eggplant
+    ],
+    bad: [
+      newMap(30, 13, 1, 1, 1), //cereal
+      newMap(31, 13, 1, 1, 1), //lolipop
+      newMap(32, 13, 1, 1, 1), //candy
+      newMap(33, 13, 1, 1, 1), //cereal bar
+      newMap(34, 13, 1, 1, 1), //ice cream
+      newMap(35, 13, 1, 1, 1), //white chocolate
+      newMap(36, 13, 1, 1, 1), //hamburguer
+      newMap(37, 13, 1, 1, 1), //black juice
+      newMap(38, 13, 1, 1, 1), //red juice
+      newMap(39, 13, 1, 1, 1), //purple juice
+      newMap(40, 13, 1, 1, 1), //yogurt
+    ],
+  },
 }
 
-function getDoor(curr,next){
- for(var i=0;i<doors.length;i++){
-  const door=doors[i]
-  if(curr==door[2]&&
-     next==door[0])return door
- }
- //return [0,[0,0],0]
-}
+const rooms = [
+  /*[[posx,posy,redrawfn?],...]*/
+  [
+    [0, 0, redrawBg([16, 32, 48, 33, 49, 34, 50])],
+    [0, 17],
+  ],
+  [
+    [60, 0, redrawBg([28])],
+    [60, 17],
+  ],
+  [
+    [90, 0, redrawBg([28])],
+    [90, 17],
+  ],
+]
+doors = [
+  /*[room,[x,y],toroom]*/
+  [0, [9, 8], 1],
+  [0, [21, 8], 2],
+  [0, [22, 8], 2],
+  [2, [6, 8], 0],
+  [2, [7, 8], 0],
+  [1, [20, 8], 0],
+]
+var room = 0
 
-function enterDoor(){
- for(var i=0;i<doors.length;i++){
-  const door=doors[i]
-  if(door[0]!=room)continue
-  const obj=doorObj(door)
-		//rect(obj.pos.x,obj.pos.y,obj.size.w,obj.size.h,1)
-  //rect(obj.pos.x,obj.pos.y,8,8,1)
-  if(collides(obj)){
-   sfx(6,20,10,2)
-   obstacles=[]
-   foods=[]
-   const exitDoor=doorObj(getDoor(room,door[2]))
-   player.pos.x=exitDoor.pos.x
-   player.pos.y=exitDoor.pos.y+tileSize
-   room=door[2]
-   break
+function doorObj(door) {
+  return {
+    pos: {
+      x: door[1][0] * tileSize,
+      y: door[1][1] * tileSize,
+    },
+    size: {
+      w: 1,
+      h: 2,
+    },
   }
- }
 }
 
-var
- t=0,
- rt=0
+function getDoor(curr, next) {
+  for (var i = 0; i < doors.length; i++) {
+    const door = doors[i]
+    if (curr == door[2] && next == door[0]) return door
+  }
+  //return [0,[0,0],0]
+}
+
+function enterDoor() {
+  for (var i = 0; i < doors.length; i++) {
+    const door = doors[i]
+    if (door[0] != room) continue
+    const obj = doorObj(door)
+    //rect(obj.pos.x,obj.pos.y,obj.size.w,obj.size.h,1)
+    //rect(obj.pos.x,obj.pos.y,8,8,1)
+    if (collides(obj)) {
+      sfx(6, 20, 10, 2)
+      obstacles = []
+      foods = []
+      const exitDoor = doorObj(getDoor(room, door[2]))
+      player.pos.x = exitDoor.pos.x
+      player.pos.y = exitDoor.pos.y + tileSize
+      room = door[2]
+      break
+    }
+  }
+}
+
+var t = 0,
+  rt = 0
 
 // PLAYER
-function walking(p){
-	return p.dir.x!=0 || p.dir.y!=0
+function walking(p) {
+  return p.dir.x != 0 || p.dir.y != 0
 }
-function facing(p){
-	return p.lastDir.x==-1
+function facing(p) {
+  return p.lastDir.x == -1
 }
-const player={
-	pos:{x:startPos.x,y:startPos.y},
-	speed:1,
-	maxSpeed:2,
-	realSpeed:0,
-	dir:{x:0,y:0},
-	lastDir:{x:0,y:0},
-	notRunMulti:0.7,
-	state:{
-		walking:false,
-		invencible:0,// Invencible per 100 ticks
-	 running:false,
-		lives:defaultLives,
-	 nextLife:liveScoreInc
-	},
-	size:spriteSize(sprite.player.idle[0]),
-	fn:{
-		draw:function(){
-		 var
-				j=playerSpriteUpdate/Math.round(player.realSpeed),
-    a=rt%j,
-				len=sprite.player.idle.length,
-			 index=Math.floor(a/j*len)
-			var s=sprite.player.idle[index]
-		 if(player.state.walking||player.state.running){
-				len=sprite.player.walk.length,
-			 index=Math.floor(a/j*len)
-				s=sprite.player.walk[index]
-				if(rt%(j/2)==0)
-				 sfx(0,20+index,10,0,6)
-			}
-			if(
-			 player.state.invencible>0&&
-			 rt%20<8
-			)return
-			drawSpr(s,player.pos.x,player.pos.y,facing(player))
-		 player.state.walking=false//TODO fix this, have to do another way to stop walking on menu
-		},
-		update:function(){
-		 // reset player direction
-			player.dir.y=0
-		 player.dir.x=0
-		
-		 // get directional buttons value
-			if(btn(0))player.dir.y=-1
-			if(btn(1))player.dir.y=1
-			if(btn(2))player.dir.x=-1
-			if(btn(3))player.dir.x=1
-			
-			player.state.running=btn(7)
- 
-			// save walking state
-			player.state.walking=walking(player)
+const player = {
+  pos: { x: startPos.x, y: startPos.y },
+  speed: 1,
+  maxSpeed: 2,
+  realSpeed: 0,
+  dir: { x: 0, y: 0 },
+  lastDir: { x: 0, y: 0 },
+  notRunMulti: 0.7,
+  state: {
+    walking: false,
+    invencible: 0, // Invencible per 100 ticks
+    running: false,
+    lives: defaultLives,
+    nextLife: liveScoreInc,
+  },
+  size: spriteSize(sprite.player.idle[0]),
+  fn: {
+    draw: function () {
+      var j = playerSpriteUpdate / Math.round(player.realSpeed),
+        a = rt % j,
+        len = sprite.player.idle.length,
+        index = Math.floor((a / j) * len)
+      var s = sprite.player.idle[index]
+      if (player.state.walking || player.state.running) {
+        ;(len = sprite.player.walk.length), (index = Math.floor((a / j) * len))
+        s = sprite.player.walk[index]
+        if (rt % (j / 2) == 0) sfx(0, 20 + index, 10, 0, 6)
+      }
+      if (player.state.invencible > 0 && rt % 20 < 8) return
+      drawSpr(s, player.pos.x, player.pos.y, facing(player))
+      player.state.walking = false //TODO fix this, have to do another way to stop walking on menu
+    },
+    update: function () {
+      // reset player direction
+      player.dir.y = 0
+      player.dir.x = 0
 
-			player.realSpeed=player.speed
-			// change player position based on direction button
-			// pressed
-			if(!player.state.running)
-		  player.realSpeed*=player.notRunMulti
+      // get directional buttons value
+      if (btn(0)) player.dir.y = -1
+      if (btn(1)) player.dir.y = 1
+      if (btn(2)) player.dir.x = -1
+      if (btn(3)) player.dir.x = 1
 
-			player.pos.y+=player.realSpeed*player.dir.y
-			player.pos.x+=player.realSpeed*player.dir.x
+      player.state.running = btn(7)
 
-			// limit to getbout canvas
-			if(player.pos.x<=-4)
-			 player.pos.x=-4
-			if(player.pos.x>=ground.w-player.size.w+4)
-			 player.pos.x=ground.w-player.size.w+4
-			if(player.pos.y<=ground.h)
-			 player.pos.y=ground.h
-			if(player.pos.y>=screen.h-player.size.h)
-			 player.pos.y=screen.h-player.size.h
+      // save walking state
+      player.state.walking = walking(player)
 
-			// If dir changed, set the last one
-			if(player.dir.x!=0) player.lastDir.x=player.dir.x
-		 if(player.dir.y!=0) player.lastDir.y=player.dir.y
+      player.realSpeed = player.speed
+      // change player position based on direction button
+      // pressed
+      if (!player.state.running) player.realSpeed *= player.notRunMulti
 
-   // decrease invencibility time
-   if(player.state.invencible>0)
-    player.state.invencible--
-    
-   enterDoor()
-		},
-		resetStat:function(){
-		 player.pos.x=startPos.x
-   player.pos.y=startPos.y
-   player.speed=1
-   player.state.lives=defaultLives
-   player.state.nextLife=liveScoreInc
-		},
-		addSpeed:function(x){
-		 player.speed+=x
-			if(player.speed>player.maxSpeed)
-			 player.speed=player.maxSpeed
-			if(player.speed<0)
-			 player.speed=0
-		},
-		hit:function(){
-			if(player.state.lives==0){
-			 gameOver()
-				return
-			}
-			sfx(0,10)
-		 player.state.lives--
-			player.state.invencible=invencibleTime
-		},
-		updateLives:function(){
-   if(score>=player.state.nextLife){
-    sfx(5,45,-1,0)
-    player.state.nextLife+=liveScoreInc
-    player.state.lives++
-    player.state.invencible=invencibleTime
-   }
-  }
-	}
+      player.pos.y += player.realSpeed * player.dir.y
+      player.pos.x += player.realSpeed * player.dir.x
+
+      // limit to getbout canvas
+      if (player.pos.x <= -4) player.pos.x = -4
+      if (player.pos.x >= ground.w - player.size.w + 4)
+        player.pos.x = ground.w - player.size.w + 4
+      if (player.pos.y <= ground.h) player.pos.y = ground.h
+      if (player.pos.y >= screen.h - player.size.h)
+        player.pos.y = screen.h - player.size.h
+
+      // If dir changed, set the last one
+      if (player.dir.x != 0) player.lastDir.x = player.dir.x
+      if (player.dir.y != 0) player.lastDir.y = player.dir.y
+
+      // decrease invencibility time
+      if (player.state.invencible > 0) player.state.invencible--
+
+      enterDoor()
+    },
+    resetStat: function () {
+      player.pos.x = startPos.x
+      player.pos.y = startPos.y
+      player.speed = 1
+      player.state.lives = defaultLives
+      player.state.nextLife = liveScoreInc
+    },
+    addSpeed: function (x) {
+      player.speed += x
+      if (player.speed > player.maxSpeed) player.speed = player.maxSpeed
+      if (player.speed < 0) player.speed = 0
+    },
+    hit: function () {
+      if (player.state.lives == 0) {
+        gameOver()
+        return
+      }
+      sfx(0, 10)
+      player.state.lives--
+      player.state.invencible = invencibleTime
+    },
+    updateLives: function () {
+      if (score >= player.state.nextLife) {
+        sfx(5, 45, -1, 0)
+        player.state.nextLife += liveScoreInc
+        player.state.lives++
+        player.state.invencible = invencibleTime
+      }
+    },
+  },
 }
 
 // LOGS
-var obstacles=[]
-function updateObstacles(){
-	if(
-	 t%obstacleSpawnTime==0&&
-		obstacles.length<=obstacleSpawnMax
-	) newObstacle()
-	for(var i=0;i<obstacles.length;i++){
-	 const obstacle=obstacles[i]
-		
-		// move obstacle
-		var s=obstacle.speed
-		if(slomo)s/=slomoDiv
-		obstacle.pos.y+=s
-		
-		// delete the obstacle out of screen
-		if(obstacle.pos.y>=screen.h+tileSize){
-		 obstacles.splice(i,1)
-			incScore()
-			sfx(3,50+Math.floor(Math.random()*10),5,2,3,2)
-		}
-		
-		// if collide, game over
-		if(
-		 player.state.invencible==0&&
-		 collides(obstacle)
-		) player.fn.hit()
-	}
-}
-function drawObstacles(){
-	for(var i=0;i<obstacles.length;i++){
-	 const obstacle=obstacles[i]
-		drawMap(
-		 sprite.obstacle[obstacle.spriteIndex],
-			obstacle.pos.x,
-			obstacle.pos.y,
-			obstacle.flip,
-			obstacle.rot
-		)
-	}
-}
-function newObstacle(){
-  const	spriteIndex=
-		 Math.floor(Math.random()*
-				(obstacleMaxSize-obstacleMinSize)
-			 +obstacleMinSize)
-		const	speed=(
-			Math.random()*(
-				obstacleMaxSpeed-obstacleMinSpeed
-			))+obstacleMinSpeed
-		const	size=mapSize(
-		 sprite.obstacle[spriteIndex])
-		const x=Math.floor(
-			Math.random()*(screen.w-size.w))
-		const flip=Math.floor(Math.random()*4)
-		const rot=Math.floor(Math.random()*4)
-	 
-	obstacles.push({
-		speed:speed,
-		pos:{x:x,y:-size.h},
-		size:size,
-		spriteIndex:spriteIndex,
-		rot:rot,
-		flip:flip
-	})
-}
+var obstacles = []
+function updateObstacles() {
+  if (t % obstacleSpawnTime == 0 && obstacles.length <= obstacleSpawnMax)
+    newObstacle()
+  for (var i = 0; i < obstacles.length; i++) {
+    const obstacle = obstacles[i]
 
+    // move obstacle
+    var s = obstacle.speed
+    if (slomo) s /= slomoDiv
+    obstacle.pos.y += s
+
+    // delete the obstacle out of screen
+    if (obstacle.pos.y >= screen.h + tileSize) {
+      obstacles.splice(i, 1)
+      incScore()
+      sfx(3, 50 + Math.floor(Math.random() * 10), 5, 2, 3, 2)
+    }
+
+    // if collide, game over
+    if (player.state.invencible == 0 && collides(obstacle)) player.fn.hit()
+  }
+}
+function drawObstacles() {
+  for (var i = 0; i < obstacles.length; i++) {
+    const obstacle = obstacles[i]
+    drawMap(
+      sprite.obstacle[obstacle.spriteIndex],
+      obstacle.pos.x,
+      obstacle.pos.y,
+      obstacle.flip,
+      obstacle.rot
+    )
+  }
+}
+function newObstacle() {
+  const spriteIndex = Math.floor(
+    Math.random() * (obstacleMaxSize - obstacleMinSize) + obstacleMinSize
+  )
+  const speed =
+    Math.random() * (obstacleMaxSpeed - obstacleMinSpeed) + obstacleMinSpeed
+  const size = mapSize(sprite.obstacle[spriteIndex])
+  const x = Math.floor(Math.random() * (screen.w - size.w))
+  const flip = Math.floor(Math.random() * 4)
+  const rot = Math.floor(Math.random() * 4)
+
+  obstacles.push({
+    speed: speed,
+    pos: { x: x, y: -size.h },
+    size: size,
+    spriteIndex: spriteIndex,
+    rot: rot,
+    flip: flip,
+  })
+}
 
 // HUD
-var
- // score defined in top
- maxScore=0
- tries=0
-function hudLoop(){
- print("Score:"+score,50,2)
- print("Lives:"+player.state.lives,2,2)
- print("Speed:"+player.speed.toFixed(1),110,2)
- if(slomoSeconds>0)
-  print("Slomo time:"+slomoActiveTime,165,2)
- else{
-  const missing=slomoLevels[0].score-score
-  if (missing>0)
-   print("Get slomo:"+missing,165,2)
- }
+var // score defined in top
+  maxScore = 0
+tries = 0
+function hudLoop() {
+  print("Score:" + score, 50, 2)
+  print("Lives:" + player.state.lives, 2, 2)
+  print("Speed:" + player.speed.toFixed(1), 110, 2)
+  if (slomoSeconds > 0) print("Slomo time:" + slomoActiveTime, 165, 2)
+  else {
+    const missing = slomoLevels[0].score - score
+    if (missing > 0) print("Get slomo:" + missing, 165, 2)
+  }
 }
-function incScore(){
-	score+=1
-	if(maxScore<score)maxScore=score
-	
-	slomoUnlock()
-	player.fn.updateLives()
+function incScore() {
+  score += 1
+  if (maxScore < score) maxScore = score
+
+  slomoUnlock()
+  player.fn.updateLives()
 }
 
 // MENU
-var
- gameStarted=false,
- canSelectMenu=true,
- menuPressed=false
-function updateMenu(){
- print("Score:"+score,2,2)
- print("Max score:"+maxScore,80,2)
- print("Tries:"+tries,190,2)
- print("Days Passed:"+revolutionPassed,75,10)
- print("Empty House",55,30,15,false,2)
+var gameStarted = false,
+  canSelectMenu = true,
+  menuPressed = false
+function updateMenu() {
+  print("Score:" + score, 2, 2)
+  print("Max score:" + maxScore, 80, 2)
+  print("Tries:" + tries, 190, 2)
+  print("Days Passed:" + revolutionPassed, 75, 10)
+  print("Empty House", 55, 30, 15, false, 2)
 
- //print menu
- for(var i=0;i<menuItemsKeys.length;i++){
-  const txt=menuItemsKeys[i]
-  var tplt=menuConfig.unselected
-  if(menuSelected==i)
-   tplt=menuConfig.selected
-  txt=tplt.replace("$",txt)
-  print(txt,menuConfig.x,menuConfig.y+(i*menuConfig.gap))
- }
+  //print menu
+  for (var i = 0; i < menuItemsKeys.length; i++) {
+    const txt = menuItemsKeys[i]
+    var tplt = menuConfig.unselected
+    if (menuSelected == i) tplt = menuConfig.selected
+    txt = tplt.replace("$", txt)
+    print(txt, menuConfig.x, menuConfig.y + i * menuConfig.gap)
+  }
 
- //click
-	if(btn(4)){//[A]
-	 menuItems[menuItemsKeys[menuSelected]]()
-	 showingMenu=false
-	}else
-	//up
-	if(btn(0)){//[UP]
-	 if(menuPressed)return
-	 if(menuSelected==0)menuSelected=menuItemsKeys.length-1
-		else menuSelected--
-		menuPressed=true
-	}else
-	//down
-	if(btn(1)){//[DOWN]
-	 if(menuPressed)return
-	 if(menuSelected==menuItemsKeys.length-1)menuSelected=0
-		else menuSelected++
-		menuPressed=true
-	}else
-	 menuPressed=false
+  //click
+  if (btn(4)) {
+    //[A]
+    menuItems[menuItemsKeys[menuSelected]]()
+    showingMenu = false
+  }
+  //up
+  else if (btn(0)) {
+    //[UP]
+    if (menuPressed) return
+    if (menuSelected == 0) menuSelected = menuItemsKeys.length - 1
+    else menuSelected--
+    menuPressed = true
+  }
+  //down
+  else if (btn(1)) {
+    //[DOWN]
+    if (menuPressed) return
+    if (menuSelected == menuItemsKeys.length - 1) menuSelected = 0
+    else menuSelected++
+    menuPressed = true
+  } else menuPressed = false
 }
 
 // END GAME
-function startGame(){
- //clean all states
- gameStarted=true
- obstacles=[]
- foods=[]
- score=startScore
- player.state.invencible=invencibleTime
- player.fn.resetStat()
- slomoSeconds=0
- r=Math.floor(Math.random()*30)
- rt=t=0
- isNight=false
+function startGame() {
+  //clean all states
+  gameStarted = true
+  obstacles = []
+  foods = []
+  score = startScore
+  player.state.invencible = invencibleTime
+  player.fn.resetStat()
+  slomoSeconds = 0
+  r = Math.floor(Math.random() * 30)
+  rt = t = 0
+  isNight = false
 }
-function gameOver(){
- sfx(2,10,10)
- //clean some states
- gameStarted=false
- tries++
- player.fn.resetStat()
- slomo=false
- saveMem()
+function gameOver() {
+  sfx(2, 10, 10)
+  //clean some states
+  gameStarted = false
+  tries++
+  player.fn.resetStat()
+  slomo = false
+  saveMem()
 }
 
 //SHOW ITEMS
-var showingItems=false
-function showItems(){
- showingItems=true
+var showingItems = false
+function showItems() {
+  showingItems = true
 }
-function drawItems(){
-const gap=8
- var
-  x=gap,
-  y=gap,
-  lastSize
- for(var i=0;i<sprite.obstacle.length;i++){
-  const
-   item=sprite.obstacle[i],
-   size=mapSize(item)
-  
-		if(x+size.w>screen.w){
-   y+=lastSize.h+gap
-   x=gap
+function drawItems() {
+  const gap = 8
+  var x = gap,
+    y = gap,
+    lastSize
+  for (var i = 0; i < sprite.obstacle.length; i++) {
+    const item = sprite.obstacle[i],
+      size = mapSize(item)
+
+    if (x + size.w > screen.w) {
+      y += lastSize.h + gap
+      x = gap
+    }
+    print(i + 1, x, y - 5)
+    drawMap(item, x, y)
+    x += size.w + gap
+    lastSize = size
   }
-  print(i+1,x,y-5)
-  drawMap(item,x,y)
-  x+=size.w+gap
-  lastSize=size
- }
- 
- if(btn(5))//[B]
-  showingItems=false
+
+  if (btn(5))
+    //[B]
+    showingItems = false
 }
 
 //Pause
-var
- paused=false,
- pausePressed=false,
- pauseMessage=null
-function pauseLoop(){
- if(btnp(5)){
-  if(pausePressed==false){
-   paused=!paused
-   pausePressed=true
-   if(paused==false&&pauseMessage!=null)
-    pauseMessage=null
+var paused = false,
+  pausePressed = false,
+  pauseMessage = null
+function pauseLoop() {
+  if (btnp(5)) {
+    if (pausePressed == false) {
+      paused = !paused
+      pausePressed = true
+      if (paused == false && pauseMessage != null) pauseMessage = null
+    }
+  } else pausePressed = false
+  if (paused) {
+    print("PAUSED", 5, 20, 2, false, 1)
+    if (pauseMessage != null)
+      print(
+        pauseMessage.msg,
+        pauseMessage.x,
+        pauseMessage.y,
+        rt % 60 > 30 ? 15 : 9,
+        false,
+        1
+      )
   }
- }else pausePressed=false
- if(paused){
-  print("PAUSED",5,20,2,false,1)
-  if(pauseMessage!=null)
-    print(
-     pauseMessage.msg,
-     pauseMessage.x,pauseMessage.y,
-     (rt%60>30)?15:9,
-     false,
-     1
-    )
- }
 }
-function msg(s,x,y){
- sfx(4,30)
- pauseMessage={
-  msg:s,
-  x:x,
-  y:y
- }
- paused=true
+function msg(s, x, y) {
+  sfx(4, 30)
+  pauseMessage = {
+    msg: s,
+    x: x,
+    y: y,
+  }
+  paused = true
 }
 
 //slow motion
-var
- slomo=false,
- slomoPressed=false,
- slomoSeconds=0,
- slomoActiveTime=0
-function slomoLoop(){
- if(slomoSeconds==0)return
- if(btnp(6)){
-  if(slomoPressed==false){
-   slomo=!slomo
-   slomoPressed=true
+var slomo = false,
+  slomoPressed = false,
+  slomoSeconds = 0,
+  slomoActiveTime = 0
+function slomoLoop() {
+  if (slomoSeconds == 0) return
+  if (btnp(6)) {
+    if (slomoPressed == false) {
+      slomo = !slomo
+      slomoPressed = true
+    }
+  } else {
+    slomoPressed = false
   }
- }else{
-  slomoPressed=false
- }
- if(slomo){
-  if(slomoActiveTime<=0)
-   slomo=false
-  
-  print("Slow Motion",5,30,4,false,1)
-  if(
-   !paused&&
-   rt%slomoUseTime==0&&
-   slomoActiveTime>0
-  )slomoActiveTime--
- }else if(slomoActiveTime<slomoSeconds)
-  if(
-   !paused&&
-   rt%slomoReloadTime==0
-  )slomoActiveTime++
+  if (slomo) {
+    if (slomoActiveTime <= 0) slomo = false
+
+    print("Slow Motion", 5, 30, 4, false, 1)
+    if (!paused && rt % slomoUseTime == 0 && slomoActiveTime > 0)
+      slomoActiveTime--
+  } else if (slomoActiveTime < slomoSeconds)
+    if (!paused && rt % slomoReloadTime == 0) slomoActiveTime++
 }
-function slomoUnlock(){
- for(var i=0;i<slomoLevels.length;i++){
-  const lvl=slomoLevels[i]
-  
-  if(score>=lvl.score){
-   if(lvl.dur<=slomoSeconds)continue
-   msg(lvl.msg,60,60)
-   slomoSeconds=lvl.dur
+function slomoUnlock() {
+  for (var i = 0; i < slomoLevels.length; i++) {
+    const lvl = slomoLevels[i]
+
+    if (score >= lvl.score) {
+      if (lvl.dur <= slomoSeconds) continue
+      msg(lvl.msg, 60, 60)
+      slomoSeconds = lvl.dur
+    }
   }
- }
 }
 
 //Controls
-var
- showingControls=false
-function showControls(){
- showingControls=true
+var showingControls = false
+function showControls() {
+  showingControls = true
 }
-function drawControls(){
- print("Arrow keys: Move",30,20,0,false,2)
- print("[X]: Slow Motion",30,40,0,false,2)
- print("[B]: Pause/Back",30,60,0,false,2)
- print("[Y]: Run",30,80,0,false,2)
- print("Score "+liveScoreInc+" = 1 life",30,100,0,false,1)
+function drawControls() {
+  print("Arrow keys: Move", 30, 20, 0, false, 2)
+  print("[X]: Slow Motion", 30, 40, 0, false, 2)
+  print("[B]: Pause/Back", 30, 60, 0, false, 2)
+  print("[Y]: Run", 30, 80, 0, false, 2)
+  print("Score " + liveScoreInc + " = 1 life", 30, 100, 0, false, 1)
 
-
- if(btn(5))
-  showingControls=false
+  if (btn(5)) showingControls = false
 }
 
 //FOOD
-var
- foods=[]
-function newFood(){
- var sprs=(Math.random()>=0.5)?
-  sprite.food.good:
-  sprite.food.bad
- const	s=
-	 sprs[Math.floor(Math.random()*sprs.length)]
-	const	size=mapSize(s)
-	const x=Math.floor(
-		Math.random()*(screen.w-size.w))
-	const y=Math.floor(
-		Math.random()*40)+
-		ground.h+tileSize
-	const flip=Math.floor(Math.random()*4)
-	const rot=Math.floor(Math.random()*4)
-	 
-	foods.push({
-		pos:{x:x,y:y},
-		size:size,
-		sprite:s,
-		rot:rot,
-		flip:flip,
-		good:sprs==sprite.food.good,
-		currTick:t
-	})
-}
-function eatFood(food){
-	sfx(3,30+(food.good?10:0)+
-	 Math.floor(Math.random()*10)-5)
+var foods = []
+function newFood() {
+  var sprs = Math.random() >= 0.5 ? sprite.food.good : sprite.food.bad
+  const s = sprs[Math.floor(Math.random() * sprs.length)]
+  const size = mapSize(s)
+  const x = Math.floor(Math.random() * (screen.w - size.w))
+  const y = Math.floor(Math.random() * 40) + ground.h + tileSize
+  const flip = Math.floor(Math.random() * 4)
+  const rot = Math.floor(Math.random() * 4)
 
-	if(food.good)
-		player.fn.addSpeed(foodVelMod)
-	else
-	 player.fn.addSpeed(-foodVelMod)
-	incScore()
+  foods.push({
+    pos: { x: x, y: y },
+    size: size,
+    sprite: s,
+    rot: rot,
+    flip: flip,
+    good: sprs == sprite.food.good,
+    currTick: t,
+  })
 }
-function updateFood(){
- if(
-	 t%foodSpawnTime==0&&
-		foods.length<=foodSpawnMax
-	) newFood()
-	
- for(var i=0;i<foods.length;i++){
-	 const food=foods[i]
-		//if food need to be deleted
-		if((t-food.currTick)>=foodDisapearTime)
-		 foods.splice(i,1)
-		//if player collects
-	 if(collides(food)){
-		 eatFood(food)
-		 foods.splice(i,1)
-		}
-	}
+function eatFood(food) {
+  sfx(3, 30 + (food.good ? 10 : 0) + Math.floor(Math.random() * 10) - 5)
+
+  if (food.good) player.fn.addSpeed(foodVelMod)
+  else player.fn.addSpeed(-foodVelMod)
+  incScore()
 }
-function drawFood(){
- for(var i=0;i<foods.length;i++){
-	 const food=foods[i]
-		drawMap(
-		 food.sprite,
-			food.pos.x,
-			food.pos.y,
-			//food.flip,
-			//food.rot
-			0,0
-		)
-	}
+function updateFood() {
+  if (t % foodSpawnTime == 0 && foods.length <= foodSpawnMax) newFood()
+
+  for (var i = 0; i < foods.length; i++) {
+    const food = foods[i]
+    //if food need to be deleted
+    if (t - food.currTick >= foodDisapearTime) foods.splice(i, 1)
+    //if player collects
+    if (collides(food)) {
+      eatFood(food)
+      foods.splice(i, 1)
+    }
+  }
+}
+function drawFood() {
+  for (var i = 0; i < foods.length; i++) {
+    const food = foods[i]
+    drawMap(
+      food.sprite,
+      food.pos.x,
+      food.pos.y,
+      //food.flip,
+      //food.rot
+      0,
+      0
+    )
+  }
 }
 
 player.fn.update()
 getMem()
 // LOOP
-function TIC(){
-	cls(0)
-	if(showingItems){
-	 map(0,34,30,17,0,0,0,1)
-	}else{
-		for(var i=0;i<rooms[room].length;i++){
-		 const r=rooms[room][i]
-	  map(r[0],r[1],30,17,0,0,0,1,r[2])
+function TIC() {
+  cls(0)
+  if (showingItems) {
+    map(0, 34, 30, 17, 0, 0, 0, 1)
+  } else {
+    for (var i = 0; i < rooms[room].length; i++) {
+      const r = rooms[room][i]
+      map(r[0], r[1], 30, 17, 0, 0, 0, 1, r[2])
+    }
   }
-	}
- updateDifficulty()
-	if(gameStarted){
-	 if(!paused){
-	  updateRevolution()
-	  updateObstacles()
-			updateFood()
-	  player.fn.update()
-		}
-		drawFood()
-	 drawObstacles()
-		pauseLoop()
-		slomoLoop()
- 	hudLoop()
-	}else if(showingItems){
-	 drawItems()
-	 player.fn.update()
- }else if(showingControls){
-	 drawControls()
-	 player.fn.update()
- }else updateMenu()
-	player.fn.draw()
-	
-	//increment the `tick` and `realTick`
-	if(!paused)
-	 if(slomo){
-	  t+=1/slomoDiv
-		}else{
-		 if(t|0!=t)
-			 t=Math.floor(t)
-		 t+=1
-		}
-	 rt++
+  updateDifficulty()
+  if (gameStarted) {
+    if (!paused) {
+      updateRevolution()
+      updateObstacles()
+      updateFood()
+      player.fn.update()
+    }
+    drawFood()
+    drawObstacles()
+    pauseLoop()
+    slomoLoop()
+    hudLoop()
+  } else if (showingItems) {
+    drawItems()
+    player.fn.update()
+  } else if (showingControls) {
+    drawControls()
+    player.fn.update()
+  } else updateMenu()
+  player.fn.draw()
+
+  //increment the `tick` and `realTick`
+  if (!paused)
+    if (slomo) {
+      t += 1 / slomoDiv
+    } else {
+      if (t | (0 != t)) t = Math.floor(t)
+      t += 1
+    }
+  rt++
 }
 
 // <TILES>
@@ -1109,4 +1053,3 @@ function TIC(){
 // <PALETTE>
 // 000:1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7f4f4f494b0c2566c86333c57
 // </PALETTE>
-
